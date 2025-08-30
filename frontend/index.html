@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>SpareChange - Micro-Savings & Lending</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --accent-color: #00A8FF; /* Bright Blue */
+            --background-color: #010409;
+            --text-primary: #E6EDF3;
+            --text-secondary: #7D8590;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+        }
+        .view { display: none; }
+
+        #loading-screen { background-color: var(--background-color); }
+        #landing-page-wrapper { background-color: var(--background-color); color: var(--text-primary); }
+        #scene-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        #ui-container {
+            position: relative;
+            min-height: 100vh;
+            z-index: 3;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            width: 90%;
+            margin: 0 auto;
+        }
+        #ui-container h1 { font-size: 5.5rem; font-weight: 700; margin: 0; letter-spacing: -4px; color: var(--text-primary); }
+        #ui-container p { font-size: 1.25rem; font-weight: 400; color: var(--text-secondary); margin: 1.5rem 0 3rem 0; max-width: 600px; line-height: 1.7; }
+        .cta-button {
+            padding: 1.25rem 3.5rem; background-color: var(--accent-color); border: none; color: #fff;
+            font-size: 1rem; font-weight: 700; border-radius: 12px; cursor: pointer;
+            transition: transform 0.3s ease, box-shadow 0.3s ease; text-decoration: none; pointer-events: all;
+        }
+        .cta-button:hover { transform: translateY(-5px); box-shadow: 0 15px 30px rgba(0, 168, 255, 0.3); }
+        .reveal { opacity: 0; transform: translateY(20px); }
+
+        .app-body { background-color: #0f172a; color: #cbd5e1; }
+        @keyframes fade-in { 0% { opacity: 0; } 100% { opacity: 1; } }
+        .animate-fade-in { animation: fade-in 0.5s ease-out forwards; }
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.2); width: 36px; height: 36px;
+            border-radius: 50%; border-left-color: #3b82f6; animation: spin 1s ease infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        @media (max-width: 768px) {
+            #ui-container h1 { font-size: 3.5rem; letter-spacing: -2px; }
+            #ui-container p { font-size: 1.1rem; }
+            .cta-button { padding: 1rem 2.5rem; }
+        }
+    </style>
+</head>
+<body id="body-tag">
+
+    <div id="loading-screen" class="fixed inset-0 flex flex-col items-center justify-center z-50">
+        <h1 class="text-5xl font-bold text-white animate-pulse">SpareChange</h1>
+        <p class="text-slate-400 mt-4">Initializing your financial future...</p>
+    </div>
+
+    <div id="landing-page-wrapper" class="hidden">
+        <div id="scene-container"></div>
+        <div id="ui-container">
+            <h1 class="reveal">SpareChange</h1>
+            <p class="reveal">Every spend, plants a seed for your future.</p>
+            <!-- Changed to button to avoid anchor default navigation -->
+            <button id="getStartedBtn" class="cta-button reveal" type="button">Get Started</button>
+        </div>
+    </div>
+
+    <div id="app-container" class="hidden">
+        <div id="authView" class="view min-h-screen flex items-center justify-center p-4">
+             <div class="w-full max-w-md">
+                 <div class="text-center mb-8"><h1 class="text-4xl font-bold text-white">SpareChange</h1><p class="text-slate-400 mt-2">Effortless Savings & Micro-Loans.</p></div>
+                <div id="login-container" class="bg-slate-800/50 border border-slate-700 p-8 rounded-2xl shadow-2xl backdrop-blur-lg">
+                    <h2 class="text-2xl font-bold mb-6 text-center text-white">Sign In</h2>
+                    <form id="loginForm" class="space-y-6">
+                        <div><label class="text-sm font-medium text-slate-400 block mb-2">Username</label><input id="loginUsername" type="text" required class="w-full bg-slate-900/50 border border-slate-600 rounded-lg py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"/></div>
+                        <div><label class="text-sm font-medium text-slate-400 block mb-2">Password</label><input id="loginPassword" type="password" required class="w-full bg-slate-900/50 border border-slate-600 rounded-lg py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"/></div>
+                        <div id="loginError" class="text-red-400 text-sm text-center"></div>
+                        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-lg transition-colors shadow-lg">Sign In</button>
+                    </form>
+                    <p class="mt-4 text-center text-sm text-slate-400">Don't have an account? <button id="showSignupBtn" type="button" class="font-medium text-blue-400 hover:underline">Sign up</button></p>
+                </div>
+                <div id="signup-container" class="hidden bg-slate-800/50 border border-slate-700 p-8 rounded-2xl shadow-2xl backdrop-blur-lg">
+                    <h2 class="text-2xl font-bold mb-6 text-center text-white">Create Account</h2>
+                    <form id="signupForm" class="space-y-4">
+                        <input id="signupUsername" type="text" placeholder="Username" required class="w-full bg-slate-900/50 border border-slate-600 rounded-lg py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                        <input id="signupEmail" type="email" placeholder="Email Address" required class="w-full bg-slate-900/50 border border-slate-600 rounded-lg py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                        <input id="signupPassword" type="password" placeholder="Password" required class="w-full bg-slate-900/50 border border-slate-600 rounded-lg py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                        <div id="signupError" class="text-red-400 text-sm text-center"></div>
+                        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-lg transition-colors shadow-lg">Create Account</button>
+                    </form>
+                    <p class="mt-4 text-center text-sm text-slate-400">Already have an account? <button id="showLoginBtn" type="button" class="font-medium text-blue-400 hover:underline">Log in</button></p>
+                </div>
+            </div>
+        </div>
+        <div id="dashboardView" class="view">
+             <div class="max-w-4xl mx-auto p-4 md:p-8">
+                <header class="flex justify-between items-center mb-6">
+                     <div class="flex items-center space-x-3">
+                        <div id="user-avatar" class="w-12 h-12 bg-slate-700 rounded-full flex items-center justify-center text-slate-400 font-bold text-xl"></div>
+                        <div><p class="text-sm text-slate-400">Welcome back,</p><h2 id="usernameDisplay" class="text-2xl font-bold text-slate-100"></h2></div>
+                    </div>
+                    <button id="logoutButton" type="button" class="flex items-center space-x-2 text-slate-400 hover:text-red-400 transition-colors">
+                       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                       <span class="hidden md:inline">Logout</span>
+                    </button>
+                </header>
+                <div class="bg-gradient-to-br from-blue-600 to-blue-500 text-white p-6 rounded-2xl shadow-lg mb-6"><p class="text-sm text-blue-200">Main Balance</p><p id="mainBalanceDisplay" class="text-4xl font-bold mt-1">₹0.00</p></div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                    <div class="bg-slate-800/50 border border-slate-700 p-6 rounded-2xl shadow-lg"><h3 class="font-semibold text-slate-200 mb-2">Savings Pot</h3><p id="savingsBalanceDisplay" class="text-3xl font-bold text-green-400">₹0.00</p></div>
+                     <div class="bg-slate-800/50 border border-slate-700 p-6 rounded-2xl shadow-lg"><h3 class="font-semibold text-slate-200 mb-2">Request a Loan</h3><form id="loanForm" class="flex items-center space-x-2 mt-2"><input id="loanAmount" type="number" step="0.01" placeholder="Amount" required class="w-full bg-slate-900/50 border border-slate-600 rounded-lg py-2 px-3 text-white focus:outline-none focus:ring-1 focus:ring-blue-500"/><button type="submit" class="bg-green-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-500 whitespace-nowrap">Request</button></form></div>
+                </div>
+                <div>
+                    <h3 class="font-semibold text-slate-200 text-lg mb-2">Send Money & Save</h3><p class="text-sm text-slate-500 mb-4">Trigger a UPI transaction simulation. Your payment will be rounded up to save money automatically.</p>
+                    <div class="bg-slate-800/50 border border-slate-700 p-6 rounded-2xl"><form id="transactionForm" class="space-y-4"><input id="transRecipient" type="text" placeholder="Recipient Name or UPI ID" required class="w-full bg-slate-900/50 border border-slate-600 rounded-lg py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"/><input id="transAmount" type="number" step="0.01" placeholder="Amount (e.g. 48.50)" required class="w-full bg-slate-900/50 border border-slate-600 rounded-lg py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"/><button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-lg transition-colors shadow-lg">Pay & Save</button></form></div>
+                </div>
+                <div class="mt-8"><div class="bg-slate-800/50 border border-slate-700 p-6 rounded-2xl"><div class="flex justify-between items-center mb-4"><h3 class="font-semibold text-slate-200 text-lg">Financial Insights</h3><button id="getInsightsBtn" type="button" class="bg-slate-700 hover:bg-slate-600 text-blue-300 font-semibold py-2 px-4 rounded-lg transition-colors text-sm">Get Advice</button></div><div id="insightsContent" class="text-slate-400 italic">Click the button for personalized financial advice based on your spending.</div><div id="insightsLoader" class="hidden spinner mx-auto"></div></div></div>
+                <div class="mt-8"><div class="flex justify-between items-center mb-2"><h3 class="font-semibold text-slate-200 text-lg">My Loans</h3></div><div id="borrowedLoansList" class="bg-slate-800/50 border border-slate-700 p-4 rounded-2xl shadow-lg divide-y divide-slate-700/50"></div></div>
+                 <div class="mt-8"><div class="flex justify-between items-center mb-2"><h3 class="font-semibold text-slate-200 text-lg">Recent Transactions</h3></div><div id="transactionList" class="bg-slate-800/50 border border-slate-700 p-4 rounded-2xl shadow-lg divide-y divide-slate-700/50"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+     <div id="messageModal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-50 p-4 animate-fade-in">
+        <div class="bg-slate-800 w-full max-w-sm rounded-2xl p-6 shadow-xl border border-slate-700 text-center"><p id="modalMessage" class="text-slate-200 mb-6"></p><button id="closeModal" class="px-6 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors">OK</button></div>
+    </div>
+    <div id="pinModal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-end md:items-center z-50 animate-fade-in">
+        <div class="bg-slate-800 w-full max-w-md rounded-t-2xl md:rounded-2xl p-6 border-t border-slate-700"><h3 class="text-lg font-semibold text-center text-slate-200">Enter UPI PIN</h3><div id="pin-dots" class="flex justify-center space-x-4 my-6"><div class="w-8 h-8 border-2 rounded-md border-slate-600"></div><div class="w-8 h-8 border-2 rounded-md border-slate-600"></div><div class="w-8 h-8 border-2 rounded-md border-slate-600"></div><div class="w-8 h-8 border-2 rounded-md border-slate-600"></div></div><div id="pin-keypad" class="grid grid-cols-3 gap-4"></div></div>
+    </div>
+    <div id="processing-overlay" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-50 flex-col space-y-4"><div class="spinner"></div><p class="text-slate-300 font-semibold">Processing Payment...</p></div>
+
+    <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.module.js" } }</script>
+    <script type="module">
+        import * as THREE from 'three';
+
+        // --- GSAP loader (inject then initialize app onload) ---
+        const gsapScript = document.createElement('script');
+        gsapScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js';
+        gsapScript.onload = setupApp;
+        document.head.appendChild(gsapScript);
+
+        function setupApp() {
+            // --- STATE MANAGEMENT ---
+            let authToken = localStorage.getItem('authToken');
+            let currentUser = null;
+            const API_URL = 'http://127.0.0.1:8000';
+            let currentTransaction = {};
+            let landingPageAnimationId = null;
+
+            // --- UI ELEMENT SELECTORS ---
+            const bodyTag = document.getElementById('body-tag');
+            const loadingScreen = document.getElementById('loading-screen');
+            const landingPageWrapper = document.getElementById('landing-page-wrapper');
+            const appContainer = document.getElementById('app-container');
+            const authView = document.getElementById('authView');
+            const dashboardView = document.getElementById('dashboardView');
+            const loginContainer = document.getElementById('login-container');
+            const signupContainer = document.getElementById('signup-container');
+            const messageModal = document.getElementById('messageModal');
+            const modalMessage = document.getElementById('modalMessage');
+            const pinModal = document.getElementById('pinModal');
+            const processingOverlay = document.getElementById('processing-overlay');
+
+            // --- LANDING PAGE ANIMATION (THREE + SHADER) ---
+            let scene, camera, renderer, clock, uniforms;
+            let landingResizeHandlerAdded = false;
+            const vertexShader = `
+                void main() {
+                    gl_Position = vec4(position, 1.0);
+                }
+            `;
+            const fragmentShader = `
+                precision highp float;
+                uniform vec2 u_resolution;
+                uniform float u_time;
+
+                float random(in vec2 st){
+                    return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
+                }
+
+                float noise(in vec2 st){
+                    vec2 i = floor(st);
+                    vec2 f = fract(st);
+                    float a = random(i);
+                    float b = random(i + vec2(1.0, 0.0));
+                    float c = random(i + vec2(0.0, 1.0));
+                    float d = random(i + vec2(1.0, 1.0));
+                    vec2 u = f * f * (3.0 - 2.0 * f);
+                    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+                }
+
+                float fbm(in vec2 st){
+                    float v = 0.0;
+                    float a = 0.5;
+                    vec2 shift = vec2(100.0);
+                    mat2 rot = mat2(cos(0.5), sin(0.5), -sin(0.5), cos(0.5));
+                    for(int i = 0; i < 5; ++i){
+                        v += a * noise(st);
+                        st = rot * st * 2.0 + shift;
+                        a *= 0.5;
+                    }
+                    return v;
+                }
+
+                void main(){
+                    vec2 st = gl_FragCoord.xy / u_resolution.xy;
+                    st.x *= u_resolution.x / u_resolution.y;
+                    vec3 color = vec3(0.0);
+                    vec2 q = vec2(fbm(st + u_time * 0.0), fbm(st + vec2(1.0)));
+                    vec2 r = vec2(
+                        fbm(st + 1.0 * q + vec2(1.7, 9.2) + 0.15 * u_time),
+                        fbm(st + 1.0 * q + vec2(8.3, 2.8) + 0.126 * u_time)
+                    );
+                    float f = fbm(st + r);
+                    color = mix(vec3(0.01, 0.02, 0.15), vec3(0.0, 0.1, 0.2), clamp(f * f * 4.0, 0.0, 1.0));
+                    color = mix(color, vec3(0.0, 0.5, 0.9), clamp(length(q), 0.0, 1.0));
+                    color = mix(color, vec3(0.9, 0.9, 1.0), clamp(length(r.x), 0.0, 1.0));
+                    gl_FragColor = vec4((f * f * f + 0.6 * f * f + 0.5 * f) * color, 1.0);
+                }
+            `;
+
+            function initLandingPage() {
+                const container = document.getElementById('scene-container');
+                if (!container) return;
+                // avoid creating duplicate renderer/canvas or duplicate resize handlers
+                if (renderer && container.contains(renderer.domElement)) return;
+
+                clock = new THREE.Clock();
+                scene = new THREE.Scene();
+                camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+                renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.setPixelRatio(window.devicePixelRatio || 1);
+
+                uniforms = {
+                    u_time: { value: 1.0 },
+                    u_resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) }
+                };
+
+                const plane = new THREE.PlaneGeometry(2, 2);
+                const material = new THREE.ShaderMaterial({ uniforms, vertexShader, fragmentShader });
+                const mesh = new THREE.Mesh(plane, material);
+                scene.add(mesh);
+
+                container.appendChild(renderer.domElement);
+
+                if (!landingResizeHandlerAdded) {
+                    window.addEventListener('resize', onWindowResize);
+                    landingResizeHandlerAdded = true;
+                }
+                onWindowResize();
+            }
+
+            function onWindowResize() {
+                if (!renderer) return;
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                if (uniforms && uniforms.u_resolution) uniforms.u_resolution.value.set(window.innerWidth, window.innerHeight);
+            }
+
+            function animateLandingPage() {
+                if (landingPageAnimationId) return; // prevent duplicate loops
+                const loop = () => {
+                    landingPageAnimationId = requestAnimationFrame(loop);
+                    if (clock && renderer && uniforms) {
+                        uniforms.u_time.value = clock.getElapsedTime();
+                        renderer.render(scene, camera);
+                    }
+                };
+                loop();
+            }
+
+            function stopLandingPageAnimation() {
+                if (landingPageAnimationId) {
+                    cancelAnimationFrame(landingPageAnimationId);
+                    landingPageAnimationId = null;
+                }
+                // keep the renderer DOM element; we avoid repeatedly appending new ones
+            }
+
+            // --- UI/VIEW LOGIC ---
+            document.getElementById('showSignupBtn').addEventListener('click', () => { loginContainer.classList.add('hidden'); signupContainer.classList.remove('hidden'); });
+            document.getElementById('showLoginBtn').addEventListener('click', () => { signupContainer.classList.add('hidden'); loginContainer.classList.remove('hidden'); });
+
+            function showMessage(message, buttonText = 'OK', callback = null) {
+                modalMessage.innerHTML = message;
+                const okButton = document.getElementById('closeModal');
+
+                const newOkButton = okButton.cloneNode(true); // prevent multiple listeners
+                newOkButton.textContent = buttonText;
+                newOkButton.type = 'button';
+                newOkButton.onclick = callback || (() => messageModal.classList.add('hidden'));
+
+                okButton.parentNode.replaceChild(newOkButton, okButton);
+                messageModal.classList.remove('hidden');
+            }
+
+            // --- MAIN VIEW MANAGER ---
+            function renderView(viewName) {
+                const views = { loading: loadingScreen, landing: landingPageWrapper, app: appContainer };
+                // hide all top-level views (loading, landing, app wrapper)
+                Object.values(views).forEach(view => { if (view) view.style.display = 'none'; });
+
+                if (views[viewName]) {
+                    views[viewName].style.display = (viewName === 'loading') ? 'flex' : 'block';
+                }
+
+                // inner app views (auth, dashboard) logic
+                if (viewName === 'auth' || viewName === 'dashboard') {
+                    appContainer.style.display = 'block';
+                    authView.style.display = viewName === 'auth' ? 'flex' : 'none';
+                    dashboardView.style.display = viewName === 'dashboard' ? 'block' : 'none';
+                }
+            }
+
+            // --- API & DATA LOGIC (robust) ---
+            const apiFetch = async (endpoint, options = {}) => {
+                const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+                if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+                try {
+                    const response = await fetch(`${API_URL}${endpoint}`, { ...options, headers });
+                    const text = await response.text();
+                    let data = null;
+                    try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+
+                    if (!response.ok) {
+                        const detail = (data && data.detail) ? data.detail : `HTTP error! status: ${response.status}`;
+                        throw new Error(detail);
+                    }
+                    if (response.status === 204) return null;
+                    return data;
+                } catch (error) {
+                    console.error('API Fetch Error:', error);
+                    showMessage(error.message || 'Network error');
+                    throw error;
+                }
+            };
+
+            const fetchAndDisplayDashboard = async () => {
+                if (!authToken) { renderView('auth'); return; }
+                try {
+                    currentUser = await apiFetch('/users/me/');
+                    updateDashboardUI();
+                    renderView('dashboard');
+                } catch (error) {
+                    localStorage.removeItem('authToken');
+                    authToken = null;
+                    currentUser = null;
+                    renderView('auth');
+                }
+            };
+
+            // --- DASHBOARD RENDERERS ---
+            const updateDashboardUI = () => {
+                if (!currentUser) return;
+                document.getElementById('usernameDisplay').textContent = currentUser.username || '';
+                document.getElementById('user-avatar').textContent = (currentUser.username || '').charAt(0).toUpperCase() || '';
+                document.getElementById('mainBalanceDisplay').textContent = `₹${Number(currentUser.main_balance || 0).toFixed(2)}`;
+                document.getElementById('savingsBalanceDisplay').textContent = `₹${Number(currentUser.savings_balance || 0).toFixed(2)}`;
+                renderTransactionList();
+                renderLoansList();
+            };
+
+            const renderTransactionList = () => {
+                const list = document.getElementById('transactionList');
+                list.innerHTML = '';
+                const txns = (currentUser && Array.isArray(currentUser.transactions)) ? currentUser.transactions : [];
+                if (txns.length === 0) {
+                    list.innerHTML = '<p class="text-center text-slate-500 py-4">No transactions yet.</p>';
+                    return;
+                }
+                [...txns].reverse().slice(0, 5).forEach(t => {
+                    const row = document.createElement('div');
+                    row.className = 'flex justify-between items-center py-4';
+                    row.innerHTML = `
+                        <div class="flex items-center space-x-4">
+                            <div class="w-12 h-12 rounded-full flex items-center justify-center text-xl bg-red-500/10 text-red-400">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline></svg>
+                            </div>
+                            <div>
+                                <p class="font-semibold text-slate-200">${t.description || 'Payment'}</p>
+                                <p class="text-sm text-slate-500">${new Date(t.timestamp || Date.now()).toLocaleDateString()}</p>
+                            </div>
+                        </div>
+                        <p class="font-bold text-lg text-slate-200">- ₹${Number(t.amount || 0).toFixed(2)}</p>
+                    `;
+                    list.appendChild(row);
+                });
+            };
+
+            const renderLoansList = () => {
+                const list = document.getElementById('borrowedLoansList');
+                list.innerHTML = '';
+                const loans = (currentUser && Array.isArray(currentUser.loans_borrowed)) ? currentUser.loans_borrowed : [];
+                if (loans.length === 0) {
+                    list.innerHTML = '<p class="text-center text-slate-500 py-4">You have no active loans.</p>';
+                    return;
+                }
+                loans.forEach(l => {
+                    const total = Number(l.amount || 0) * (1 + Number(l.interest_rate || 0));
+                    const row = document.createElement('div');
+                    row.className = 'flex justify-between items-center py-4';
+                    row.innerHTML = `
+                        <div>
+                            <p class="font-semibold text-slate-200">Loan (Principal: ₹${Number(l.amount || 0).toFixed(2)})</p>
+                            <p class="text-sm text-slate-400">Status: <span class="font-medium ${l.status === 'active' ? 'text-yellow-400' : 'text-green-400'} capitalize">${l.status}</span></p>
+                            ${l.status === 'active' ? `<p class="text-sm font-semibold text-slate-300">Total to Repay: <span class="font-bold text-red-400">₹${total.toFixed(2)}</span></p>` : ''}
+                        </div>
+                        ${l.status === 'active' ? `<button data-loan-id="${l.id}" type="button" class="repay-btn bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-4 rounded-lg text-sm">Repay</button>` : ''}
+                    `;
+                    list.appendChild(row);
+                });
+            };
+
+            // --- EVENT LISTENERS ---
+            document.getElementById('loanForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const amount = parseFloat(document.getElementById('loanAmount').value);
+                if (isNaN(amount) || amount <= 0) { showMessage('Please enter a valid loan amount.'); return; }
+                try {
+                    const resp = await apiFetch('/loans/request', { method: 'POST', body: JSON.stringify({ amount, borrower_id: currentUser && currentUser.id }) });
+                    const explanation = resp && resp.explanation ? resp.explanation : 'Loan request submitted successfully!';
+                    const extra = (resp && resp.loan_details) ? `<br><br><b>Loan ID: ${resp.loan_details.id}</b>` : '';
+                    showMessage(`${explanation}${extra}`);
+                    e.target.reset();
+                    await fetchAndDisplayDashboard();
+                } catch (err) { /* handled in apiFetch */ }
+            });
+
+            document.getElementById('borrowedLoansList').addEventListener('click', async (e) => {
+                const btn = e.target.closest('.repay-btn');
+                if (btn) {
+                    const id = btn.dataset.loanId;
+                    if (!id) return;
+                    try {
+                        const resp = await apiFetch(`/loans/repay/${id}`, { method: 'POST' });
+                        showMessage((resp && resp.message) ? resp.message : 'Loan repaid successfully!');
+                        await fetchAndDisplayDashboard();
+                    } catch (err) { /* handled in apiFetch */ }
+                }
+            });
+
+            document.getElementById('transactionForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const amount = parseFloat(document.getElementById('transAmount').value);
+                const recipient = document.getElementById('transRecipient').value;
+                if (isNaN(amount) || amount <= 0 || !recipient) { showMessage('Please enter a valid amount and recipient.'); return; }
+                const rounded = Math.ceil(amount / 10) * 10;
+                const toSave = rounded - amount;
+                currentTransaction = { amount, description: recipient };
+                showMessage(
+                    `You are paying <b>₹${rounded.toFixed(2)}</b> to ${recipient}.<br><b>₹${toSave.toFixed(2)}</b> will be added to your savings pot.<br><br>Proceed?`,
+                    'Confirm & Pay',
+                    () => {
+                        messageModal.classList.add('hidden');
+                        startPinEntry();
+                    }
+                );
+            });
+
+            const startPinEntry = () => {
+                let pin = '';
+                const dots = document.getElementById('pin-dots').children;
+                const renderDots = () => { for (let i = 0; i < dots.length; i++) dots[i].classList.toggle('bg-blue-500', i < pin.length); };
+                const press = async (val) => {
+                    if (val === '⌫') pin = pin.slice(0, -1);
+                    else if (pin.length < 4) pin += val;
+                    renderDots();
+                    if (pin.length === 4) {
+                        pinModal.classList.add('hidden');
+                        await processPayment();
+                    }
+                };
+                const keypad = document.getElementById('pin-keypad');
+                keypad.innerHTML = '';
+                ['1','2','3','4','5','6','7','8','9','CANCEL','0','⌫'].forEach(k => {
+                    const b = document.createElement('button');
+                    b.type = 'button';
+                    b.className = 'p-4 rounded-lg transition-colors text-lg font-semibold text-slate-200 bg-slate-700 hover:bg-slate-600';
+                    if (k === 'CANCEL') b.classList.add('text-red-400');
+                    b.textContent = k;
+                    b.onclick = () => { if (k === 'CANCEL') pinModal.classList.add('hidden'); else press(k); };
+                    keypad.appendChild(b);
+                });
+                pinModal.classList.remove('hidden');
+                renderDots();
+            };
+
+            const processPayment = async () => {
+                processingOverlay.classList.remove('hidden');
+                try {
+                    await apiFetch('/users/me/transactions/', { method: 'POST', body: JSON.stringify(currentTransaction) });
+                    await fetchAndDisplayDashboard();
+                    setTimeout(() => {
+                        showMessage('Payment Successful!');
+                        document.getElementById('transactionForm').reset();
+                    }, 300);
+                } catch (err) {
+                    // error displayed by apiFetch
+                } finally {
+                    processingOverlay.classList.add('hidden');
+                }
+            };
+
+            // --- TRANSITION & INITIALIZATION LOGIC ---
+            function initialize() {
+                setTimeout(() => {
+                    // fade out loading and then either show landing or dashboard
+                    gsap.to(loadingScreen, {
+                        opacity: 0, duration: 0.8,
+                        onComplete: () => {
+                            // hide loading element visually (we still keep display toggles via renderView)
+                            if (authToken) {
+                                stopLandingPageAnimation();
+                                bodyTag.className = 'app-body';
+                                renderView('dashboard');
+                                gsap.fromTo(dashboardView, { opacity: 0, display: 'block' }, { opacity: 1, duration: 0.5 });
+                                fetchAndDisplayDashboard();
+                            } else {
+                                renderView('landing');
+                                gsap.to(landingPageWrapper, { opacity: 1, duration: 0.8 });
+                                gsap.to('.reveal', { opacity: 1, y: 0, duration: 1.5, stagger: 0.2, ease: 'power3.out', delay: 0.5 });
+                                initLandingPage();
+                                animateLandingPage();
+                            }
+                        }
+                    });
+                }, 1500);
+            }
+
+            document.getElementById('getStartedBtn').addEventListener('click', (e) => {
+                e.preventDefault();
+                gsap.to(landingPageWrapper, {
+                    opacity: 0, duration: 0.8, ease: 'power2.inOut',
+                    onComplete: () => {
+                        stopLandingPageAnimation();
+                        bodyTag.className = 'app-body';
+                        renderView('auth');
+                        gsap.fromTo(authView, { opacity: 0 }, { opacity: 1, duration: 0.5 });
+                    }
+                });
+            });
+
+            document.getElementById('getInsightsBtn').addEventListener('click', async () => {
+                const contentDiv = document.getElementById('insightsContent');
+                const loader = document.getElementById('insightsLoader');
+                contentDiv.classList.add('hidden'); loader.classList.remove('hidden');
+                try {
+                    const data = await apiFetch('/insights');
+                    contentDiv.textContent = (data && data.insights) ? data.insights : 'No insights available right now.';
+                } catch (error) {
+                    contentDiv.textContent = 'Could not fetch insights at this time.';
+                } finally {
+                    contentDiv.classList.remove('hidden'); loader.classList.add('hidden');
+                }
+            });
+
+            document.getElementById('loginForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const username = document.getElementById('loginUsername').value;
+                const password = document.getElementById('loginPassword').value;
+                const errorDiv = document.getElementById('loginError'); errorDiv.textContent = '';
+                const formData = new URLSearchParams({ username, password });
+                try {
+                    const response = await fetch(`${API_URL}/token`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: formData });
+                    const tokenData = await response.json();
+                    if (!response.ok) throw new Error(tokenData.detail || 'Login failed');
+                    authToken = tokenData.access_token;
+                    localStorage.setItem('authToken', authToken);
+
+                    gsap.to(authView, { opacity: 0, duration: 0.5, onComplete: () => {
+                        fetchAndDisplayDashboard().then(() => {
+                           gsap.fromTo(dashboardView, { opacity: 0, display: 'block' }, { opacity: 1, duration: 0.5 });
+                        });
+                    }});
+                } catch (error) {
+                    errorDiv.textContent = error.message || 'Login failed';
+                }
+            });
+
+            document.getElementById('signupForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const username = document.getElementById('signupUsername').value;
+                const email = document.getElementById('signupEmail').value;
+                const password = document.getElementById('signupPassword').value;
+                const errorDiv = document.getElementById('signupError'); errorDiv.textContent = '';
+                try {
+                    await apiFetch('/users/', { method: 'POST', body: JSON.stringify({ username, email, password }) });
+                    showMessage('Signup successful! Please log in.');
+                    signupContainer.classList.add('hidden'); loginContainer.classList.remove('hidden');
+                } catch (error) {
+                    errorDiv.textContent = error.message || 'Signup failed';
+                }
+            });
+
+            document.getElementById('logoutButton').addEventListener('click', () => {
+                authToken = null; currentUser = null; localStorage.removeItem('authToken');
+                gsap.to(appContainer, { opacity: 0, duration: 0.5, onComplete: () => {
+                    renderView('landing');
+                    bodyTag.className = '';
+                    gsap.to(landingPageWrapper, { opacity: 1, duration: 0.5 });
+                    initLandingPage();
+                    animateLandingPage();
+                }});
+            });
+
+            // --- START THE APP ---
+            renderView('loading');
+            initialize();
+        }
+    </script>
+</body>
+</html>
